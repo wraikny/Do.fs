@@ -11,6 +11,7 @@
     <Compile Include="Helper.fs" />
     <Compile Include="Option.fs" />
     <Compile Include="Result.fs" />
+    <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
