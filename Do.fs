@@ -62,10 +62,10 @@ module Builders =
         try body ()
         finally compensation ()
 
-    member inline this.Using(disp: #IDisposable, [<InlineIfLambda>] body: #IDisposable -> Code<'t>): Code<'t> = 
+    member inline this.Using(disp: #IDisposable, [<InlineIfLambda>] body: #IDisposable -> Code<'t>): Code<'t> =
       // A using statement is just a try/finally with the finally block disposing if non-null.
       this.TryFinally(
-        this.Delay(fun () -> body disp),
+        (fun () -> (body disp)()),
         (fun () -> if not (isNull (box disp)) then disp.Dispose()))
 
   type OptionCode<'t> = Code<'t voption>
@@ -118,7 +118,7 @@ module Builders =
 
     member inline this.For(sequence: seq<'tElement>, [<InlineIfLambda>] body: 'tElement -> OptionCode<unit>): OptionCode<unit> =
       this.Using (sequence.GetEnumerator(),
-        (fun e -> this.While((fun () -> e.MoveNext()), this.Delay(fun () -> body e.Current))))
+        (fun e -> this.While((fun () -> e.MoveNext()), fun () -> (body e.Current)())))
 
     member inline _.Return (value: 't): OptionCode<'t> =
       fun () -> ValueSome value
@@ -221,12 +221,12 @@ module Builders =
     member inline this.Using(disp: #IDisposable, [<InlineIfLambda>] body: #IDisposable -> LazyCode<'t>): LazyCode<'t> = 
       // A using statement is just a try/finally with the finally block disposing if non-null.
       this.TryFinally(
-        this.Delay(fun () -> body disp),
+        (fun () -> lazy ((body disp)()).Value),
         (fun () -> if not (isNull (box disp)) then disp.Dispose()))
 
     member inline this.For(sequence: seq<'tElement>, [<InlineIfLambda>] body: 'tElement -> LazyCode<unit>): LazyCode<unit> =
       this.Using (sequence.GetEnumerator(),
-        (fun e -> this.While((fun () -> e.MoveNext()), this.Delay(fun () -> body e.Current))))
+        (fun e -> this.While((fun () -> e.MoveNext()), (fun () -> lazy ((body e.Current)()).Value))))
 
     member inline _.Return (value: 't): LazyCode<'t> = fun () -> lazy value
 
