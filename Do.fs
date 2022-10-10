@@ -48,7 +48,7 @@ module Builders =
   type Code<'a> = unit -> 'a
 
   type BuilderBase() =
-    member inline _.Delay([<InlineIfLambda>] f: unit -> Code<'t>): (Code<'t>) =
+    member inline _.Delay([<InlineIfLambda>] f: unit -> Code<'t>): Code<'t> =
       fun () -> (f())()
 
     member inline _.TryWith([<InlineIfLambda>] body: Code<'t>, [<InlineIfLambda>] catch: exn -> Code<'t>): Code<'t> =
