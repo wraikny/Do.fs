@@ -45,6 +45,43 @@ let ``Bind None`` (): unit =
   Assert.True(res.IsNone)
 
 [<Test>]
+let ``Bind Nullable(x)`` (): unit =
+  let res = Do.voption {
+    let! a = ValueSome 2
+    let! b = System.Nullable(3)
+    return a + b
+  }
+  assertEqual (ValueSome 5) res
+
+[<Test>]
+let ``Bind Nullable()`` (): unit =
+  let res = Do.voption {
+    let! a = ValueSome 2
+    let! b = System.Nullable()
+    return a + b
+  }
+  Assert.True(res.IsNone)
+
+
+[<Test>]
+let ``Bind object`` (): unit =
+  let res = Do.voption {
+    let! a = ValueSome 2
+    let! _ = obj()
+    return a
+  }
+  assertEqual (ValueSome 2) res
+
+[<Test>]
+let ``Bind null`` (): unit =
+  let res = Do.voption {
+    let! a = ValueSome 2
+    let! _ = null
+    return a
+  }
+  Assert.True(res.IsNone)
+
+[<Test>]
 let ``While false`` (): unit =
   let res = Do.voption {
     while false do ()
