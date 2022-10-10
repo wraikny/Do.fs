@@ -174,8 +174,7 @@ let ``TryFinally with Exception`` (): unit =
       finally
         count <- count + 10
       return count
-    }
-    |> fun o -> Assert.True(o.IsSome))
+    } |> ignore)
   assertEqual message res.Message
   assertEqual 10 count
 
