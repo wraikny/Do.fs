@@ -39,9 +39,10 @@
 //   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //   SOFTWARE.
 
-[<RequireQualifiedAccess>]
-module Do
+[<AutoOpen>]
+module DoFs
 
+[<RequireQualifiedAccess>]
 module Builders =
   open System
 
@@ -152,7 +153,6 @@ module Builders =
 
     member inline _.Zero(): ResultCode<unit, 'e> = fun () -> Ok()
 
-
     member inline _.Bind(res1: Result<'t1, 'e>, [<InlineIfLambda>] task2: ('t1 -> ResultCode<'t2, 'e>)): ResultCode<'t2, 'e> =
       fun () ->
         match res1 with
@@ -186,8 +186,10 @@ module Builders =
     member inline _.Run([<InlineIfLambda>] code: ResultCode<'t, 'e>): Result<'t, 'e> =
       code ()
 
-let option = Builders.OptionBuilder()
+[<RequireQualifiedAccess>]
+module Do =
+  let option = Builders.OptionBuilder()
 
-let voption = Builders.ValueOptionBuilder()
+  let voption = Builders.ValueOptionBuilder()
 
-let result = Builders.ResultBuilder()
+  let result = Builders.ResultBuilder()
