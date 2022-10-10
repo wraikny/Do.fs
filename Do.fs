@@ -39,6 +39,7 @@
 //   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //   SOFTWARE.
 
+[<RequireQualifiedAccess>]
 module Do
 
 module Builders =
@@ -47,7 +48,7 @@ module Builders =
   type Code<'a> = unit -> 'a
 
   type BuilderBase() =
-    member inline _.Delay([<InlineIfLambda>] f: unit -> (Code<'t>)): (Code<'t>) =
+    member inline _.Delay([<InlineIfLambda>] f: unit -> Code<'t>): (Code<'t>) =
       fun () -> (f())()
 
     member inline _.TryWith([<InlineIfLambda>] body: Code<'t>, [<InlineIfLambda>] catch: exn -> Code<'t>): Code<'t> =
@@ -63,7 +64,7 @@ module Builders =
     member inline this.Using(disp: #IDisposable, [<InlineIfLambda>] body: #IDisposable -> Code<'t>): Code<'t> = 
       // A using statement is just a try/finally with the finally block disposing if non-null.
       this.TryFinally(
-        (fun () -> (body disp)()),
+        this.Delay(fun () -> body disp),
         (fun () -> if not (isNull (box disp)) then disp.Dispose()))
 
   type OptionCode<'t> = Code<'t voption>
@@ -72,12 +73,6 @@ module Builders =
     inherit BuilderBase()
 
     member inline _.Zero(): OptionCode<unit> = fun () -> ValueSome()
-
-    member inline _.Combine([<InlineIfLambda>] task1: OptionCode<unit>, [<InlineIfLambda>] task2: OptionCode<'t>) : OptionCode<'t> =
-      fun () ->
-        match task1() with
-        | ValueNone -> ValueNone
-        | ValueSome() -> task2()
 
     member inline _.Bind(res1: 't1 option, [<InlineIfLambda>] task2: ('t1 -> OptionCode<'t2>)): OptionCode<'t2> =
       fun () ->
@@ -91,6 +86,26 @@ module Builders =
         | ValueNone -> ValueNone
         | ValueSome v -> (task2 v)()
 
+    member inline _.Bind(res1: Nullable<'t1>, [<InlineIfLambda>] task2: ('t1 -> OptionCode<'t2>)): OptionCode<'t2> =
+      fun () ->
+        if res1.HasValue then (task2 res1.Value)()
+        else ValueNone
+
+    member inline _.Bind(res1: Result<'t1, _>, [<InlineIfLambda>] task2: ('t1 -> OptionCode<'t2>)): OptionCode<'t2> =
+      fun () ->
+        match res1 with
+        | Error _ -> ValueNone
+        | Ok v -> (task2 v)()
+
+    member inline _.Bind(res1: 't1, [<InlineIfLambda>] task2: ('t1 -> OptionCode<'t2>)): OptionCode<'t2> when 't : null =
+      fun () ->
+        match res1 with
+        | null -> ValueNone
+        | v -> (task2 v)()
+
+    member inline this.Combine([<InlineIfLambda>] task1: OptionCode<unit>, [<InlineIfLambda>] task2: OptionCode<'t>) : OptionCode<'t> =
+      this.Bind(task1(), fun () -> task2)
+
     member inline _.While([<InlineIfLambda>] condition : unit -> bool, [<InlineIfLambda>] body : OptionCode<unit>) : OptionCode<unit> =
       fun () ->
         let mutable proceed = true
@@ -102,7 +117,7 @@ module Builders =
 
     member inline this.For(sequence: seq<'tElement>, [<InlineIfLambda>] body: 'tElement -> OptionCode<unit>): OptionCode<unit> =
       this.Using (sequence.GetEnumerator(),
-        (fun e -> this.While((fun () -> e.MoveNext()), (fun () -> (body e.Current)()))))
+        (fun e -> this.While((fun () -> e.MoveNext()), this.Delay(fun () -> body e.Current))))
 
     member inline _.Return (value: 't): OptionCode<'t> =
       fun () -> ValueSome value
@@ -137,17 +152,15 @@ module Builders =
 
     member inline _.Zero(): ResultCode<unit, 'e> = fun () -> Ok()
 
-    member inline _.Combine([<InlineIfLambda>] task1: ResultCode<unit, 'e>, [<InlineIfLambda>] task2: ResultCode<'t, 'e>) : ResultCode<'t, 'e> =
-      fun () ->
-        match task1() with
-        | Error e -> Error e
-        | Ok() -> task2()
 
     member inline _.Bind(res1: Result<'t1, 'e>, [<InlineIfLambda>] task2: ('t1 -> ResultCode<'t2, 'e>)): ResultCode<'t2, 'e> =
       fun () ->
         match res1 with
         | Error e -> Error e
         | Ok v -> (task2 v)()
+
+    member inline this.Combine([<InlineIfLambda>] task1: ResultCode<unit, 'e>, [<InlineIfLambda>] task2: ResultCode<'t, 'e>) : ResultCode<'t, 'e> =
+      this.Bind(task1(), fun () -> task2)
 
     member inline _.While([<InlineIfLambda>] condition : unit -> bool, [<InlineIfLambda>] body : ResultCode<unit, 'e>) : ResultCode<unit, 'e> =
       fun () ->
