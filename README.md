@@ -1,6 +1,10 @@
 # Do.fs
 
-F# optimized Computation Expressions.
+F# optimized Computation Expressions.  
+
+## Features
+* Self-contained single source file.
+* Optimized with `InlineIfLambda`.
 
 ## Builders
 * `Option<'a>`: `Do.option`
