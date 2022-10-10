@@ -186,6 +186,55 @@ module Builders =
     member inline _.Run([<InlineIfLambda>] code: ResultCode<'t, 'e>): Result<'t, 'e> =
       code ()
 
+  type LazyCode<'t> = Code<Lazy<'t>>
+
+  type LazyBuilder() =
+    member inline _.Delay([<InlineIfLambda>] f: unit -> LazyCode<'t>): LazyCode<'t> =
+      fun () -> lazy ((f())()).Value
+
+    member inline _.Zero(): LazyCode<unit> = fun () -> (Lazy<_>.CreateFromValue())
+
+    member inline _.Bind(res1: Lazy<'t1>, [<InlineIfLambda>] task2: ('t1 -> LazyCode<'t2>)): LazyCode<'t2> =
+      fun () -> lazy (task2(res1.Value)()).Value
+
+    member inline this.Combine([<InlineIfLambda>] task1: LazyCode<unit>, [<InlineIfLambda>] task2: LazyCode<'t>) : LazyCode<'t> =
+      this.Bind(task1(), fun () -> task2)
+
+    member inline _.While([<InlineIfLambda>] condition : unit -> bool, [<InlineIfLambda>] body : LazyCode<unit>) : LazyCode<unit> =
+      fun () ->
+        lazy
+          while condition() do
+            body().Force()
+
+    member inline _.TryWith([<InlineIfLambda>] body: LazyCode<'t>, [<InlineIfLambda>] catch: exn -> LazyCode<'t>): LazyCode<'t> =
+      fun () ->
+        lazy
+          try body().Force()
+          with exn -> ((catch exn)()).Force()
+
+    member inline _.TryFinally([<InlineIfLambda>] body: LazyCode<'t>, [<InlineIfLambda>] compensation: unit -> unit): LazyCode<'t> =
+      fun () ->
+        lazy
+          try body().Force()
+          finally compensation ()
+
+    member inline this.Using(disp: #IDisposable, [<InlineIfLambda>] body: #IDisposable -> LazyCode<'t>): LazyCode<'t> = 
+      // A using statement is just a try/finally with the finally block disposing if non-null.
+      this.TryFinally(
+        this.Delay(fun () -> body disp),
+        (fun () -> if not (isNull (box disp)) then disp.Dispose()))
+
+    member inline this.For(sequence: seq<'tElement>, [<InlineIfLambda>] body: 'tElement -> LazyCode<unit>): LazyCode<unit> =
+      this.Using (sequence.GetEnumerator(),
+        (fun e -> this.While((fun () -> e.MoveNext()), this.Delay(fun () -> body e.Current))))
+
+    member inline _.Return (value: 't): LazyCode<'t> = fun () -> lazy value
+
+    member inline _.ReturnFrom (source: Lazy<'t>): LazyCode<'t> = fun () -> source
+
+    member inline _.Run([<InlineIfLambda>] code: LazyCode<'t>): Lazy<'t> =
+      code ()
+
 [<RequireQualifiedAccess>]
 module Do =
   let option = Builders.OptionBuilder()
@@ -193,3 +242,5 @@ module Do =
   let voption = Builders.ValueOptionBuilder()
 
   let result = Builders.ResultBuilder()
+
+  let lazily = Builders.LazyBuilder()
