@@ -1,0 +1,4 @@
+*             text=auto encoding=utf-8
+*.fs          text eol=lf
+*.fsproj      text eol=lf
+*.md          text eol=lf
