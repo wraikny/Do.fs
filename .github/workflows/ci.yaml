@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - workflows
+    tags:
+      - '*'
+  pull_request:
+
+jobs:
+  ci:
+    strategy:
+      matrix:
+        os: [ windows-latest ]
+        dotnet: [ 6.0.x ]
+
+    runs-on: ${{ matrix.os }}
+    if: "!contains(github.event.head_commit.message, 'ci:skip')"
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ matrix.dotnet }}
+
+    - name: Build
+      run: dotnet build .
+
+    - name: Build
+      run: dotnet build Test
+
+    - name: Test
+      run: dotnet test Test
